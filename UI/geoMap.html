@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href='https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons' rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <v-content>
+        <v-text-field
+          v-model="name"
+          :rules="nameRules"
+          :counter="10"
+          label="Name"
+          required
+         ></v-text-field>
+       </v-form>
+        
+        <div id="map"></div>
+          <v-container grid-list-md text-xs-center>
+	    <v-layout row wrap>
+	      <v-flex xs3>
+		<h2 style="left: -60%; position: relative">
+		  Protect it
+		</h2>
+		<p style="left: -60%; position: relative"> Suggest a preservation proposal</p>
+	      </v-flex>
+	      <v-flex xs2>
+		<v-text-field
+		      v-model="north"
+		      label="Name"
+		      required
+		      outline
+		 ></v-text-field>
+                 <v-text-field
+		      v-model="south"
+		      label="Name"
+		      required
+		      outline
+		 ></v-text-field>
+                 <v-text-field
+		      v-model="east"
+		      label="Name"
+		      required
+		      outline
+		 ></v-text-field>
+                 <v-text-field
+		      v-model="west"
+		      label="Name"
+		      required
+	              outline
+		 ></v-text-field>
+	      </v-flex>
+              <v-flex xs1>
+              </v-flex>
+              <v-flex xs2>
+		 <v-select
+		  v-model="reason"
+		  :items="sigItems"
+		  label="Reason for preservation"
+		  outline
+		  style="width:120%"
+		 ></v-select>
+	      </v-flex>
+	      <v-btn  style="margin-left:10%;" @click="addRow({1: 1, north, south, east, west, reason})">Submit</v-btn>
+	    </v-layout>
+	  </v-container>
+      </v-content>
+    </v-app>
+  </div>
+ 
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script>
+      var map;
+      function initMap() {
+        var map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 11,
+          center: {lat: 33.678, lng: -116.243},
+          mapTypeId: 'terrain'
+        });
+        var bounds = {}
+        axios.get('http://127.0.0.1:3001/getRows/joe')
+	    .then(function (response) {
+	      console.log(response);
+              bounds = {
+ 		north: Number(response.data.rows[0].north),
+                south: Number(response.data.rows[0].south),
+                east: Number(response.data.rows[0].east),
+                west: Number(response.data.rows[0].west)
+	      }
+
+ 	      var rectangle = new google.maps.Rectangle({
+		  strokeColor: '#FF0000',
+		  strokeOpacity: 0.8,
+		  strokeWeight: 2,
+		  fillColor: '#FF0000',
+		  fillOpacity: 0.35,
+		  map: map,
+		  bounds: bounds
+	      });
+	      console.log(bounds)
+	    })
+	    .catch(function (error) {
+	      console.log(error);
+	    });   
+      }
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCThd0aLhSKb8UhI_pxOatoAOyCBZkN-1k&callback=initMap"
+    async defer></script>
+  <script>
+
+    // AIzaSyCThd0aLhSKb8UhI_pxOatoAOyCBZkN-1k
+    // https://medium.com/founders-factory/building-a-custom-google-map-component-with-vue-js-d1c01ddd0b0a
+    
+    new Vue({ 
+      el: '#app',
+      data: function () {
+        return { 
+          north: '33.685',
+          south: '33.671',
+          east: '-116.234',
+          west: '-116.251',
+          reason: '',
+          sigItems: ['High animal traffic', 'Nostalgia of area', 'Threatend species']
+        }
+      },
+      methods: {
+	addRow: function (data) {
+          data = {account: 'john', args: data}
+	  data = JSON.stringify(data)
+	  data = btoa(data)
+          axios
+            .get('http://127.0.0.1:3001/addRow/' + data)
+            .then(response => (this.info = response))
+        }
+      }
+    })
+  </script>
+
+  
+</body>
+</html>
+
+<style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 40%;
+        width:100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 40%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+
+

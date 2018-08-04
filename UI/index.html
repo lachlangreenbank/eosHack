@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href='https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons' rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <v-navigation-drawer
+        v-model="drawer"
+        fixed
+        clipped
+        class="grey lighten-4"
+        app
+	style="width:19.5vw;margin:16px;border:10px solid black;"
+      >
+        <v-list
+          dense
+          class="grey lighten-4"
+        >
+          <template>
+            <v-layout
+              row
+              align-center
+            >
+              <v-flex xs6>
+                <v-subheader @click="currentTable = 'create'">
+                  Tables
+                </v-subheader>
+              </v-flex>
+            </v-layout>
+            <v-divider
+              dark
+              class="my-3"
+            ></v-divider>
+            <v-list-tile
+              @click="currentTable = 'create'"
+            >
+              <v-list-tile-action>
+                <v-icon>add</v-icon>
+              </v-list-tile-action>
+              <v-list-tile-content>
+                <v-list-tile-title class="grey--text">
+                  Create new table
+                </v-list-tile-title>
+              </v-list-tile-content>
+            </v-list-tile>
+          </template>
+
+          <template v-for="(item, i) in items">
+            <v-layout
+              v-if="item.heading"
+              row
+              align-center
+            >
+            </v-layout>
+            <v-list-tile
+              v-else
+              @click="currentTable = item.text"
+            >
+              <v-list-tile-action>
+                <v-icon>{{ item.icon }}</v-icon>
+              </v-list-tile-action>
+              <v-list-tile-content>
+                <v-list-tile-title class="grey--text">
+                  {{ item.text }}
+                </v-list-tile-title>
+              </v-list-tile-content>
+            </v-list-tile>
+          </template>
+        </v-list>
+      </v-navigation-drawer>
+      <v-toolbar color="amber" app absolute clipped-left>
+        <v-toolbar-side-icon @click.native="drawer = !drawer"></v-toolbar-side-icon>
+        <span class="title ml-3 mr-5">myEOSql&nbsp;<span class="text"></span></span>
+        <!-- <v-text-field
+          solo-inverted
+          flat
+          hide-details
+          label="Search"
+          prepend-inner-icon="search"
+        ></v-text-field> -->
+        <v-spacer></v-spacer>
+        <h2 style="top:10px;" @click="getTable();"> {{currentTable}} </h2>
+      </v-toolbar>
+      <v-content>
+        <loading v-if="loadingBar"> </loading>
+        <v-container fluid fill-height class="grey lighten-4">
+          <v-layout justify-center align-center>
+            <template v-if="currentTable != 'create'">
+              <v-data-table
+                v-model="selected"
+                :headers="headers"
+                :items="rows[currentTable]"
+                :pagination.sync="pagination"
+                select-all
+                item-key="name"
+                class="elevation-1"
+              >
+                <template slot="headers" slot-scope="props">
+                  <tr>
+                    <th
+                      v-for="header in props.headers"
+                      :class="['column sortable', pagination.descending ? 'desc' : 'asc', header.value === pagination.sortBy ? 'active' : '']"
+                    >
+                      <v-icon small>arrow_upward</v-icon>
+                      {{ header.text }}
+                    </th>
+                  </tr>
+                </template>
+                <template slot="items" slot-scope="props">
+                  <tr :active="props.selected" @click="props.selected = !props.selected">
+                    <td v-for="(row, i) in headers">{{ props.item[headers[i].text] }}</td>
+                  </tr>
+                </template>
+              </v-data-table>
+            </template>
+            <v-flex sm2 style="margin:30px;" v-show="currentTable == 'create' && !loadingBar">
+              <v-select
+                v-model="noCols"
+                placeholder='No. Cols'
+                :items="[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+              ></v-select>
+            </v-flex>
+            <v-flex sm2 v-show="currentTable == 'create' && loadingBar">
+              <h3> Generating Database.. </h3>
+            </v-flex>
+            <v-text-field v-if="currentTable == 'create' && !loadingBar" style="position:absolute;left:50%;top:20%" v-model="newTableName" placeholder="new table acc name"></v-text-field>
+            <v-data-table
+                v-if="currentTable == 'create' && !loadingBar"
+                v-model="selected"
+                :headers="headers"
+                :items="rows['create']"
+                class="elevation-1"
+              >
+
+                <template slot="headers" slot-scope="props">
+                  
+                  <tr>
+                    <td>
+                      <span>account</span>
+                    </td>
+                    <td
+                      v-for="(header, i) in noCols"
+                    >
+                      <v-text-field v-model="newHeaders[i]" :placeholder="'Col ' + i + ' name'"></v-text-field>
+                    </td>
+                  </tr>
+                </template>
+                <template slot="items" slot-scope="props">
+                  <tr >
+                    <td class="text-xs-right"><span>Account_name</span></td>
+                    <td v-for="(col, index) in noCols" class="text-xs-right"><v-select
+                      v-model="newTypes[index]"
+                      :items="types"
+                      label="Type"
+                      solo
+                      flat
+                      style="margin-top:20px;"
+                    ></v-select></td>
+                  </tr>
+                </template>
+              </v-data-table>
+            <v-flex shrink>
+              <v-tooltip bottom>
+                <v-btn
+                  slot="activator"
+                  :href="source"
+                  icon
+                  large
+                  target="_blank"
+                  v-if="currentTable == 'create' && !loadingBar"
+                  @click="compileTableForDispatch(); isLoading()"
+                >
+                  <v-icon large>add</v-icon>
+                </v-btn>
+                <span>Add new table</span>
+              </v-tooltip>
+            </v-flex>
+          </v-layout>
+        </v-container>
+      </v-content>
+    </v-app>
+  </div>
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.17/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/5.2.0/firebase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+
+  <script>
+    // Initialize Firebase
+    var config = {
+      apiKey: "AIzaSyAuRPIWThRVEbi4ZnXazf_iVO3Wcp7Skts",
+      authDomain: "myeosql.firebaseapp.com",
+      databaseURL: "https://myeosql.firebaseio.com",
+      projectId: "myeosql",
+      storageBucket: "myeosql.appspot.com",
+      messagingSenderId: "502699324618"
+    };
+    var defaultApp = firebase.initializeApp(config);
+    var db = defaultApp.database();
+
+    let loading = {
+      data () {
+        return {
+          value: 0,
+          query: false,
+          show: true,
+          interval: 0,
+          color: 'blue'
+        }
+      },
+
+      mounted () {
+        this.queryAndIndeterminate()
+      },
+
+      beforeDestroy () {
+        clearInterval(this.interval)
+      },
+
+      methods: {
+        queryAndIndeterminate () {
+          this.query = true
+          this.show = true
+          this.value = 0
+
+          setTimeout(() => {
+            this.query = false
+
+            this.interval = setInterval(() => {
+              if (this.value === 100) {
+                clearInterval(this.interval)
+                this.show = false
+                return setTimeout(this.queryAndIndeterminate, 2000)
+              }
+              this.value += 25
+              if (this.value === 25) {
+                this.color = 'warning'
+              } else if (this.value === 100) {
+                this.color = 'success'
+              }
+            }, 1000)
+          }, 2500)
+        }
+      },
+      template:
+        '<div>' +
+          '<v-progress-linear ' +
+          'v-model="value" ' +
+          ':active="show" ' +
+          ':indeterminate="query" height="20" :color="color"' +
+          ':query="true"></v-progress-linear>' +
+        '</div>'
+    }
+
+    new Vue({ 
+      el: '#app',
+      data: () => ({
+        drawer: null,
+        creating: true,
+        loadingBar: false,
+        items: [],
+        types: ['int', 'string'],
+        newTypes: {},
+        newHeaders: {},
+        noCols: 4,
+        currentTable: 'LachlansTable',
+        pagination: {
+          sortBy: 'name'
+        },
+        selected: [],
+        headers: [],
+        rows: {},
+        newTableName: ''
+      }),
+      created: function  () {
+        let self = this
+        let tablesRef = 'Tables/'
+        tablesRef = db.ref(tablesRef)
+        tablesRef.on('value', function (snapshot) {
+          console.log(snapshot.val())
+          self.items = snapshot.val()
+        }, function (errorObject) {
+          console.log('The read failed: ' + errorObject.code)
+        })
+
+        let tableDataRef = 'TableData/'
+        tableDataRef = db.ref(tableDataRef)
+        tableDataRef.on('value', function (snapshot) {
+          console.log(snapshot.val())
+          self.rows = snapshot.val()
+          self.currentTable = 'EthansTable'
+        }, function (errorObject) {
+          console.log('The read failed: ' + errorObject.code)
+        })
+      },
+      components: {
+        loading
+      },
+      props: {
+        source: String
+      },
+      watch: {
+        noCols: function () {
+          if (this.noCols == 1) {this.noCols = ['']}
+          else if (this.noCols === 2) {this.noCols = ['', '']}
+          else if (this.noCols === 3) {this.noCols = ['', '', '']}
+          else if (this.noCols === 4) {this.noCols = ['', '', '', '']}
+          else if (this.noCols === 5) {this.noCols = ['', '', '', '', '']}
+          else if (this.noCols === 6) {this.noCols = ['', '', '', '', '', '']}
+          else if (this.noCols === 7) {this.noCols = ['', '', '', '', '', '', '']}
+          else if (this.noCols === 8) {this.noCols = ['', '', '', '', '', '', '', '']}
+          else if (this.noCols === 9) {this.noCols = ['', '', '', '', '', '', '', '', '']}
+          else if (this.noCols === 10) {this.noCols = ['', '', '', '', '', '', '', '', '', '']}
+        },
+        currentTable: function () {
+          if (this.currentTable) {
+             var rawHeaders = Object.keys(this.rows[this.currentTable][0])
+            this.headers = []
+            for (var i = 0; i < rawHeaders.length; i++) {
+              this.headers.push({text: rawHeaders[i], value: rawHeaders[i]})
+            }
+          }
+        }
+      },
+      methods: {
+        isLoading: function () {
+          this.loadingBar = true
+          setTimeout( () => {
+              this.loadingBar = false
+              this.currentTable = this.newTableName
+          }, 8000)
+        },
+        compileTableForDispatch: function () {
+          let self = this
+          let headers = Object.values(self.newHeaders)
+          let types = Object.values(self.newTypes)
+
+          console.log(headers)
+          console.log(types)
+
+          let dispatch = {
+            headers: [],
+            types: []
+          }
+
+          for (let i = 0; i < headers.length; i++) {
+            dispatch.headers.push(headers[i])
+          }
+          for (let t = 0; t < types.length; t++) {
+            dispatch.types.push(types[t])
+          }
+
+          // add the table name to firebase
+          let pos = 0
+	  if (this.items !== []) {
+	    pos = this.items.length
+	  } else {
+	    pos = 0
+          }
+          
+          let tablesRef = db.ref('Tables/' + pos)
+          let newTable = {text: this.newTableName, icon: 'table'}
+          tablesRef.update(newTable, function (err) {
+            if (err) {
+              console.log(err)
+            } else {
+              console.log('header updated')
+            }
+          })
+
+          this.createDatabase({cols: dispatch, account: this.newTableName})
+		
+          console.log(dispatch)
+        },
+        createDatabase: function (data) {
+	  data = JSON.stringify(data)
+	  data = btoa(data)
+          axios
+            .get('http://127.0.0.1:3001/createDatabase/' + data)
+            .then(response => (this.info = response))
+        },
+        getTable: function () {
+	  console.log('getting')
+          let self = this
+	  let callEOS = function () {
+	    axios
+              .get('http://127.0.0.1:3001/getRows/' + self.currentTable)
+              .then(response => (self.rows[self.currentTable] = response.data.rows))
+	    console.log(self.rows[self.currentTable])
+          }
+          callEOS()
+          setTimeout(function () {
+	    callEOS()
+	  }, 500) 
+        }
+      }
+    })
+  </script>
+</body>
+</html>
+
+<style>
+  #keep main .container {
+    height: 660px;
+  }
+  .v-navigation-drawer__border {
+    display: none;
+  }
+  .text {
+    font-weight: 400;
+  }
+</style>
